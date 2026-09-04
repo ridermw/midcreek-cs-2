@@ -89,12 +89,17 @@ The execution record, comparison settings, measurements, and promotion verdict
 live in [`docs/hill-climb.md`](docs/hill-climb.md). Reference renders are never
 included in the runtime bundle.
 
-**Known performance limit:** the development VM has no hardware GPU exposed.
-The promoted, full-resolution build measured 26.4 FPS under SwiftShader, with
-28 draw calls, 12,372 triangles, and a 151 KB initial payload. The 60 FPS target
-remains unmet; reduced-quality experiments were recorded and rejected rather
-than silently lowering visual quality. See the hillclimb record for evidence
-and the opt-in hardware timing gate.
+**60 FPS checkpoint:** full-resolution color/depth caching now sustains 60.0 FPS
+on the same SwiftShader development VM, including dispatch and active repair.
+The static hall is cached with 4-sample antialiasing; the technician and route
+are still rendered every frame with correct rack occlusion. Steady rendering
+uses 15 calls / 442 triangles; cache-refresh peaks are 29 calls / 12,374
+triangles. Initial payload is about 152 KB.
+
+The first 300 frames, including startup/JIT cost, averaged 56.1 FPS. The explicit
+sustained gate uses a fixed 12-second warm-up and saves both windows rather than
+hiding startup costs. It also measures 300 frames during actual repair. See the
+hillclimb record for the before/after comparison and rejected quality reductions.
 
 ### Reproduce the hillclimb
 

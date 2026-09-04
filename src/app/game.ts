@@ -2,6 +2,7 @@ import {
   BufferGeometry,
   Float32BufferAttribute,
   InstancedMesh,
+  Light,
   Line,
   LineBasicMaterial,
   LineSegments,
@@ -9,6 +10,7 @@ import {
   Mesh,
   Plane,
   Raycaster,
+  Scene,
   Texture,
   Vector2,
   Vector3,
@@ -25,6 +27,7 @@ import { ISOMETRIC_CAMERA } from '../camera/isometricCamera'
 import { summarizeFrames, transferBytes } from '../diagnostics/metrics'
 import type { Diagnostics, Inspection } from '../diagnostics/inspection'
 import { createHall } from '../engine/hall'
+import { createHallCache } from '../engine/hallCache'
 import { palette } from '../engine/geometry'
 import { movementForKey } from '../input/keyboard'
 import { createHud } from '../ui/hud'
@@ -37,6 +40,8 @@ import {
 } from '../world/simulation'
 
 export function startGame(root: HTMLElement): () => void {
+  const startupStarted = performance.now()
+  let startupMs = 0
   const params = new URLSearchParams(location.search)
   const seed = Number(params.get('seed') ?? '417')
   let world = createWorld(seed)
@@ -45,7 +50,7 @@ export function startGame(root: HTMLElement): () => void {
   const viewport = hud.element('#viewport')
   const renderer = new WebGLRenderer({
     canvas,
-    antialias: true,
+    antialias: false,
     powerPreference: 'high-performance',
   })
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
@@ -66,13 +71,19 @@ export function startGame(root: HTMLElement): () => void {
   const requestedZoom = Number(params.get('zoom') ?? 1)
   if (Number.isFinite(requestedZoom)) zoomCamera(camera, requestedZoom - 1)
   const { scene, player } = createHall(world)
+  const dynamicScene = new Scene()
+  for (const child of scene.children) {
+    if (child instanceof Light) dynamicScene.add(child.clone())
+  }
+  dynamicScene.add(player)
+  const hallCache = createHallCache(renderer, scene, camera)
   const routeGeometry = new BufferGeometry()
   const route = new Line(
     routeGeometry,
     new LineBasicMaterial({ color: palette.teal }),
   )
   route.visible = false
-  scene.add(route)
+  dynamicScene.add(route)
   let lastPath = world.player.path
   const fault = world.racks.find((rack) => rack.id === world.fault.rackId)!
   const frames: number[] = []
@@ -281,6 +292,11 @@ export function startGame(root: HTMLElement): () => void {
         navigation[0]?.loadEventEnd ?? 0,
       ),
       hardware,
+      staticPasses: hallCache.staticPasses,
+      renderedFrames: hallCache.renderedFrames,
+      startupMs,
+      peakDrawCalls: hallCache.peakDrawCalls,
+      peakTriangles: hallCache.peakTriangles,
       browserViewport: { width: window.innerWidth, height: window.innerHeight },
       camera: {
         heading: ISOMETRIC_CAMERA.orbitHeadingsDegrees[cameraHeading(camera)],
@@ -334,7 +350,7 @@ export function startGame(root: HTMLElement): () => void {
     }
     positionLabel('#fault-marker', fault.cell.x, 3.25, fault.cell.z)
     positionLabel('#player-marker', player.position.x, 1.98, player.position.z)
-    renderer.render(scene, camera)
+    hallCache.render(dynamicScene)
     if (time - lastUiTime > 100) {
       lastUiTime = time
       hud.update(world)
@@ -357,33 +373,41 @@ export function startGame(root: HTMLElement): () => void {
   }
   cameraLabels()
   hud.update(world)
+  player.position.set(world.player.cell.x, 0, world.player.cell.z)
+  // Prepare shaders and resolve the initial cache before starting the interactive clock.
+  hallCache.render(dynamicScene)
+  context.finish()
+  startupMs = performance.now() - startupStarted
+  previousTime = performance.now()
   frame = requestAnimationFrame(animate)
   return () => {
     disposed = true
     cancelAnimationFrame(frame)
     resize.disconnect()
     events.abort()
+    hallCache.dispose()
     Reflect.deleteProperty(window, '__midcreek')
     const geometries = new Set<BufferGeometry>()
     const materials = new Set<Material>()
     const textures = new Set<Texture>()
-    scene.traverse((object) => {
-      if (!(
-        object instanceof Mesh ||
-        object instanceof Line ||
-        object instanceof LineSegments
-      ))
-        return
-      if (object instanceof InstancedMesh) object.dispose()
-      geometries.add(object.geometry)
-      for (const material of Array.isArray(object.material)
-        ? object.material
-        : [object.material]) {
-        materials.add(material)
-        for (const value of Object.values(material))
-          if (value instanceof Texture) textures.add(value)
-      }
-    })
+    for (const ownedScene of [scene, dynamicScene])
+      ownedScene.traverse((object) => {
+        if (!(
+          object instanceof Mesh ||
+          object instanceof Line ||
+          object instanceof LineSegments
+        ))
+          return
+        if (object instanceof InstancedMesh) object.dispose()
+        geometries.add(object.geometry)
+        for (const material of Array.isArray(object.material)
+          ? object.material
+          : [object.material]) {
+          materials.add(material)
+          for (const value of Object.values(material))
+            if (value instanceof Texture) textures.add(value)
+        }
+      })
     geometries.forEach((geometry) => geometry.dispose())
     materials.forEach((material) => material.dispose())
     textures.forEach((texture) => texture.dispose())

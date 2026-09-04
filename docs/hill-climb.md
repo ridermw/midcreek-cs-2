@@ -113,9 +113,9 @@ the actual checked-out commit, which browser acceptance checks must match.
 ![Repair in progress](evidence/05-working.png)
 ![Completed repair](evidence/05-restored.png)
 
-### Remaining timing blocker
+### Initial timing blocker (resolved by checkpoint 07)
 
-**The 60 FPS target is not met on this development VM.** Windows exposes only
+**The first release did not meet the 60 FPS target on this VM.** Windows exposes only
 `Microsoft Hyper-V Video`; Chromium reports ANGLE Vulkan **SwiftShader**, a
 software renderer. Enabling the Chromium hardware-GPU flag still selected
 SwiftShader (26.9 FPS in that probe). Do not describe these results as a
@@ -125,9 +125,9 @@ counts. All draw-call, triangle, and transfer limits are met.
 Three bounded experiments isolated antialiasing, geometry, and raster-area
 costs. None reached 60 FPS. The two fidelity regressions were rejected instead
 of hiding the shortfall with a lower-resolution default, skipped renderer
-updates, or a fake FPS counter. Further content breadth is not the next step:
-run the same capture on a hardware-accelerated Windows browser before choosing
-a deeper rendering change.
+updates, or a fake FPS counter. The next checkpoint below instead removes
+repeated static-scene shading while keeping the same scene, camera, and pixel
+resolution on the existing VM.
 
 ### Published gameplay checkpoint
 
@@ -138,9 +138,8 @@ cases then passed against the **public site**, with `EXPECTED_BUILD_SHA=40976cf`
 including dispatch, arrival, active repair, completion, restart, camera controls,
 pointer movement, pause, narrow layout, and graphics-loss recovery.
 
-This is a playable release, **not** a declaration that the 60 FPS quality bar
-passed. The remaining action is the hardware-accelerated timing comparison
-described above. Documentation-only commits can advance the build stamp after
+That was a playable release, **not** a declaration that the 60 FPS quality bar
+passed at that checkpoint. Documentation-only commits can advance the build stamp after
 this gameplay checkpoint; the header and Pages workflow identify the current
 deployed revision.
 
@@ -153,7 +152,61 @@ npm run test:e2e -- tests/e2e/performance.spec.ts
 Remove-Item Env:CHECK_FRAME_TARGET
 ```
 
-It fails below 59 measured mean FPS or above 18 ms p95 (one FPS tolerance for
-refresh-clock quantization). Ordinary CI does not falsely mark that hardware
+It fails below 59 sustained mean FPS or above 18 ms p95 (one FPS tolerance for
+refresh-clock quantization). Ordinary CI does not falsely mark an unrun hardware
 target as passed. Pages deployment is gated on formatting, lint, deterministic
-tests, build, real WebGL gameplay acceptance, and exact build identity.
+tests, build, real WebGL gameplay acceptance, cache invalidation, and exact build
+identity.
+
+## Checkpoint 07: full-resolution color/depth caching
+
+**Verdict: promote. The sustained 60 FPS target now passes on the same VM.**
+
+The static hall is rendered into a full-resolution color/depth target with
+4-sample antialiasing. Each frame restores both buffers and renders the current
+technician and route. Orbit, zoom, and resize invalidate the cache. No simulation
+ticks, dynamic renders, scene details, or pixels are skipped to manufacture FPS.
+Peak work includes the cache rebuild, not just the cheap steady frame.
+
+The timing protocol now explicitly distinguishes startup from sustained play:
+save the first 300 frames, wait a fixed 12 simulation seconds, then measure the
+latest 300. The same protocol was run against the uncached public `dac6940`
+build first: the >=59 FPS / <=18 ms p95 gate failed at 38.7 FPS. The cached build
+then passed at 60.0 FPS. The original thresholds were not lowered.
+
+| Fixed seed 417 / heading 45 / zoom 1 / 1280 x 720 |   Before cache |    After cache |
+| ------------------------------------------------- | -------------: | -------------: |
+| First 300 frames (startup/JIT included), FPS      |           38.5 |           56.1 |
+| Sustained mean FPS after fixed warm-up            |           38.7 |           60.0 |
+| Sustained median / p95, ms                        |    33.3 / 33.4 |    16.7 / 16.7 |
+| Active dispatch + repair, mean FPS / p95 ms       |   Not captured |    60.0 / 16.7 |
+| Steady draw calls / triangles                     |    28 / 12,372 |       15 / 442 |
+| Cache-refresh peak calls / triangles              | Not applicable |    29 / 12,374 |
+| Initial payload, bytes                            |        151,554 |        151,809 |
+| Drawing buffer pixels / renderer pixel ratio      | 1280 x 600 / 1 | 1280 x 600 / 1 |
+
+The cached initialization took approximately 154-158 ms. Its first-window
+startup/JIT cost is retained in JSON, not filtered out or described as 60 FPS.
+Actual rendered-frame counts exceed 1,000 during the active-loop measurement,
+while `staticPasses` remains 1; dynamics continue to render on every frame.
+
+Evidence: `06-before-cache*.json/png`, `07-cached*.json/png`, and
+`07-cached-active-repair.json` in `docs/evidence/`. Before-cache baselines were
+captured from the published `dac6940` build; the candidate's `dac6940-dirty`
+stamp identifies its working-tree base.
+
+![Full-resolution cached hall](evidence/07-cached.png)
+
+Three pre-change canvas references (45-degree view, 135-degree view, and the
+technician behind a rack during repair) pass with at most 100 differing pixels
+at a 1280 x 600 canvas. The originals were captured before cache implementation
+and were not regenerated to accept the change. Additional browser checks prove
+cache refresh on orbit/zoom/resize and continued dynamic rendering. All nine
+Windows browser cases pass, including the explicit timing gate; 21 deterministic
+unit cases remain green.
+
+An independent Rubber Duck review found no material issues in the cache changes.
+The checkpoint also adds `.gitattributes` to preserve LF text on Windows:
+`core.autocrlf=true` otherwise turned clean LF blobs into CRLF working files,
+causing 33 formatting failures after a branch checkout. The repository's
+formatting gate now passes without changing global Git settings.

@@ -10,6 +10,11 @@ export interface Diagnostics {
   readonly triangles: number
   readonly initialTransferBytes: number
   readonly hardware: string
+  readonly staticPasses: number
+  readonly renderedFrames: number
+  readonly startupMs: number
+  readonly peakDrawCalls: number
+  readonly peakTriangles: number
   readonly browserViewport: { readonly width: number; readonly height: number }
   readonly camera: {
     readonly heading: number

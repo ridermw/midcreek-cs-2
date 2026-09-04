@@ -43,3 +43,17 @@ These values are measured from approved concept art and are encoded in
 - Diagnostics observe behavior but cannot alter it.
 - Reference art never ships in the runtime bundle unless explicitly promoted
   through the asset pipeline.
+
+## Static hall cache
+
+`src/engine/hallCache.ts` owns a full-resolution, 4-sample color/depth render
+target. The immutable hall is refreshed only when the camera matrices or drawing
+buffer size change. Every visible animation frame restores the cached color and
+depth, then draws the technician and route; rack occlusion is not bypassed.
+Dynamic lights mirror the hall lighting. Simulation ticks and snapshots are
+unchanged by caching.
+
+The cache owns and disposes its render target (including the depth texture),
+quad geometry, and material. The application owns both scene graphs and disposes
+their remaining geometry/material/texture resources. Diagnostics report every
+actual rendered frame, static-pass count, and both steady and peak GPU work.
