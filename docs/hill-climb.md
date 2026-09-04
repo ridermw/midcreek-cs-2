@@ -129,6 +129,21 @@ updates, or a fake FPS counter. Further content breadth is not the next step:
 run the same capture on a hardware-accelerated Windows browser before choosing
 a deeper rendering change.
 
+### Published gameplay checkpoint
+
+Gameplay commit `40976cf` was integrated into `main` and deployed to
+<https://ridermw.github.io/midcreek-cs-2/>. Pages run `33922403443` and Quality run
+`33922403453` both completed successfully. The same six browser acceptance
+cases then passed against the **public site**, with `EXPECTED_BUILD_SHA=40976cf`,
+including dispatch, arrival, active repair, completion, restart, camera controls,
+pointer movement, pause, narrow layout, and graphics-loss recovery.
+
+This is a playable release, **not** a declaration that the 60 FPS quality bar
+passed. The remaining action is the hardware-accelerated timing comparison
+described above. Documentation-only commits can advance the build stamp after
+this gameplay checkpoint; the header and Pages workflow identify the current
+deployed revision.
+
 The explicit target gate is intentionally separate from deterministic CI:
 
 ```powershell
