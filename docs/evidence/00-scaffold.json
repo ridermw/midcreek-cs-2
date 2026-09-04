@@ -1,0 +1,14 @@
+{
+  "kind": "scaffold-no-game-renderer",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "samples": 180,
+  "medianMs": 16.699999999999818,
+  "p95Ms": 16.700000000000273,
+  "fps": 60.002000066669055,
+  "drawCalls": 0,
+  "triangles": 0,
+  "initialTransferBytes": 2916
+}

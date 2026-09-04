@@ -29,6 +29,8 @@ jobs:
       - uses: actions/configure-pages@v5
       - run: npm ci
       - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: EXPECTED_BUILD_SHA=$(git rev-parse --short HEAD) npm run test:e2e
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

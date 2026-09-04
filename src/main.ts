@@ -1,19 +1,30 @@
 import './style.css'
+import { startGame } from './app/game'
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <main class="shell">
-    <p class="eyebrow">MIDCREEK / CEL SHIFT / CONCEPT 02</p>
-    <h1>Engine foundation ready.</h1>
-    <p class="lede">
-      Three.js, WebGL, deterministic simulation contracts, quality gates, and
-      the measured isometric camera are scaffolded. Gameplay begins in the next
-      hill-climb.
-    </p>
-    <dl class="status-grid">
-      <div><dt>Camera</dt><dd>35.264° orthographic</dd></div>
-      <div><dt>Orbit</dt><dd>Four 90° headings</dd></div>
-      <div><dt>Target</dt><dd>Modern desktop browsers</dd></div>
-      <div><dt>State</dt><dd>Foundation only</dd></div>
-    </dl>
-  </main>
-`
+const root = document.querySelector<HTMLDivElement>('#app')!
+
+try {
+  const dispose = startGame(root)
+  if (import.meta.hot) import.meta.hot.dispose(dispose)
+  window.addEventListener(
+    'pagehide',
+    (event) => {
+      if (!event.persisted) dispose()
+    },
+    { once: true },
+  )
+} catch (error) {
+  console.error('Midcreek could not start', error)
+  root.replaceChildren()
+  const notice = document.createElement('main')
+  notice.className = 'startup-error'
+  const heading = document.createElement('h1')
+  heading.textContent = 'This shift could not start.'
+  const detail = document.createElement('p')
+  detail.textContent = error instanceof Error ? error.message : String(error)
+  const help = document.createElement('p')
+  help.textContent =
+    'Use a desktop browser with WebGL 2 and hardware acceleration. If the seed in the address is invalid, remove it and reload.'
+  notice.append(heading, detail, help)
+  root.append(notice)
+}
